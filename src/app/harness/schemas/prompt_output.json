@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Prompt Layer Output",
+  "type": "object",
+  "required": ["task_description", "scope", "type", "complexity", "ambiguities", "assumptions"],
+  "properties": {
+    "task_description": {
+      "type": "string",
+      "description": "Clear, structured description of what needs to be done"
+    },
+    "scope": {
+      "type": "string",
+      "description": "Files, modules, or areas affected"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["feature", "bugfix", "refactor", "documentation", "test", "analysis", "other"]
+    },
+    "complexity": {
+      "type": "object",
+      "required": ["level", "reasoning", "recommended_layers"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["trivial", "low", "medium", "high", "critical"]
+        },
+        "reasoning": { "type": "string" },
+        "recommended_layers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skip_target": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "ambiguities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Unclear aspects in the original prompt. Must be non-empty for medium+ complexity."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Assumptions made to structure this task. Each must be falsifiable."
+    }
+  },
+  "additionalProperties": false
+}

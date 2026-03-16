@@ -1,0 +1,55 @@
+pipeline:
+  skip_policy: recommended    # never | next | recommended | always
+  eval_gate: human            # human | auto
+  max_retries_per_layer: 3
+  plan: max_5x                # max_5x | max_20x — for rate limit estimation
+
+  layers:
+    prompt:
+      enabled: true
+      model: haiku
+      max_turns: 3
+      allowed_tools:
+        - Read
+        - Glob
+    context:
+      enabled: true
+      model: sonnet
+      max_turns: 10
+      allowed_tools:
+        - Read
+        - Glob
+        - Grep
+        - Bash
+    intent:
+      enabled: true
+      model: opus
+      max_turns: 5
+      allowed_tools:
+        - Read
+        - Glob
+    judgment:
+      enabled: true
+      model: opus
+      max_turns: 5
+      allowed_tools:
+        - Read
+        - Glob
+        - Grep
+    coherence:
+      enabled: true
+      model: sonnet
+      max_turns: 3
+      allowed_tools:
+        - Read
+        - Glob
+        - Skill
+      setting_sources:
+        - user
+        - project
+
+  eval:
+    model: sonnet
+    max_turns: 2
+    allowed_tools:
+      - Read

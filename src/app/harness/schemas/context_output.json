@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Context Layer Output",
+  "type": "object",
+  "required": ["sources", "gathered_info", "distilled_context", "dependencies", "gaps", "relevant_history"],
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "path", "summary", "verified"],
+        "properties": {
+          "type": { "type": "string", "enum": ["file", "directory", "git", "documentation"] },
+          "path": { "type": "string" },
+          "summary": { "type": "string" },
+          "verified": {
+            "type": "boolean",
+            "description": "Whether this source was actually read/confirmed to exist"
+          }
+        }
+      }
+    },
+    "gathered_info": {
+      "type": "string",
+      "description": "Full synthesized understanding of the relevant codebase/context"
+    },
+    "distilled_context": {
+      "type": "string",
+      "description": "Compressed briefing for downstream layers — only what Intent, Judgment, and Coherence NEED. Must be shorter than gathered_info."
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Information that could not be found but the task likely needs. Honest gap reporting is a quality signal."
+    },
+    "relevant_history": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

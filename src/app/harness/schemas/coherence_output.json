@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Coherence Layer Output",
+  "type": "object",
+  "required": ["final_output", "alignment_notes", "judgment_responses", "consistency_check", "confidence", "confidence_reasoning"],
+  "properties": {
+    "final_output": {
+      "type": "string",
+      "description": "The complete, ready-to-use output"
+    },
+    "alignment_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["standard", "source", "status", "detail"],
+        "properties": {
+          "standard": { "type": "string" },
+          "source": { "type": "string", "enum": ["CLAUDE.md", "skill", "inferred", "best_practice"] },
+          "status": { "type": "string", "enum": ["aligned", "adjusted", "flagged"] },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "judgment_responses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk", "how_addressed"],
+        "properties": {
+          "risk": { "type": "string" },
+          "how_addressed": { "type": "string" }
+        }
+      }
+    },
+    "consistency_check": {
+      "type": "object",
+      "required": ["prior_patterns", "style_coherence", "principle_violations", "drift_risk"],
+      "properties": {
+        "prior_patterns": {
+          "type": "string",
+          "description": "What existing project patterns this output follows or breaks"
+        },
+        "style_coherence": {
+          "type": "string",
+          "description": "Whether this output matches the project's established style"
+        },
+        "principle_violations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Cases where this output contradicts stated project principles"
+        },
+        "drift_risk": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "How likely this change pulls the codebase in a new, unintended direction"
+        }
+      },
+      "description": "Verify behavioral consistency with the project's identity and patterns."
+    },
+    "project_conventions_applied": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "skills_activated": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "skipped_layer_compensation": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "confidence_reasoning": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

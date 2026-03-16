@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Judgment Layer Output",
+  "type": "object",
+  "required": ["risks", "assumptions_challenged", "confidence_boundaries", "edge_cases", "missing_considerations", "go_no_go", "go_no_go_reasoning"],
+  "properties": {
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk", "severity", "mitigation", "detectable"],
+        "properties": {
+          "risk": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "mitigation": { "type": "string" },
+          "detectable": {
+            "type": "boolean",
+            "description": "Whether this risk can be detected before damage occurs"
+          }
+        }
+      }
+    },
+    "assumptions_challenged": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assumption", "challenge", "recommendation"],
+        "properties": {
+          "assumption": { "type": "string" },
+          "challenge": { "type": "string" },
+          "recommendation": { "type": "string" }
+        }
+      }
+    },
+    "confidence_boundaries": {
+      "type": "object",
+      "required": ["operating_within", "operating_outside", "unknowns"],
+      "properties": {
+        "operating_within": {
+          "type": "string",
+          "description": "What this pipeline knows well enough to handle reliably"
+        },
+        "operating_outside": {
+          "type": "string",
+          "description": "Where the pipeline is guessing or extrapolating beyond evidence"
+        },
+        "unknowns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Things we don't know and can't easily find out. Must be non-empty."
+        }
+      },
+      "description": "Distinguish 'confident in this answer' from 'confident this is within competence'."
+    },
+    "degradation_protocol": {
+      "type": ["object", "null"],
+      "required": ["if_wrong_about", "fallback", "detection"],
+      "properties": {
+        "if_wrong_about": {
+          "type": "string",
+          "description": "The single most dangerous assumption"
+        },
+        "fallback": {
+          "type": "string",
+          "description": "What to do if it turns out false"
+        },
+        "detection": {
+          "type": "string",
+          "description": "How we would notice the assumption is wrong"
+        }
+      },
+      "description": "Required for high/critical complexity tasks. Defines what happens when the most dangerous assumption fails."
+    },
+    "edge_cases": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "missing_considerations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "go_no_go": {
+      "type": "string",
+      "enum": ["proceed", "proceed_with_caution", "reconsider"]
+    },
+    "go_no_go_reasoning": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

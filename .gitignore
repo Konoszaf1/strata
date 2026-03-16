@@ -1,0 +1,6 @@
+/.claude
+/.pytest_cache
+/.stack
+/.venv
+/CLAUDE.md
+/uv.lock

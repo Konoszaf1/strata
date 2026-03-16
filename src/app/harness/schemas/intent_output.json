@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Intent Layer Output",
+  "type": "object",
+  "required": ["refined_goal", "success_criteria", "tradeoffs", "decision_boundaries", "constraints", "out_of_scope", "priority_order"],
+  "properties": {
+    "refined_goal": {
+      "type": "string",
+      "description": "Precise statement of what the task should achieve"
+    },
+    "success_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "measurable", "verification"],
+        "properties": {
+          "criterion": { "type": "string" },
+          "measurable": { "type": "boolean" },
+          "verification": { "type": "string" }
+        }
+      }
+    },
+    "tradeoffs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tension", "resolution", "reversible"],
+        "properties": {
+          "tension": {
+            "type": "string",
+            "description": "The competing concerns, e.g. 'readability vs. performance'"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "Which side wins AND WHY — the organizational reason, not just preference"
+          },
+          "reversible": {
+            "type": "boolean",
+            "description": "Whether this tradeoff resolution can be changed later without major rework"
+          }
+        }
+      },
+      "description": "Every non-trivial task has at least one tradeoff. Make them explicit."
+    },
+    "decision_boundaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "autonomous", "escalate"],
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "Decision domain, e.g. file_changes, architecture, dependencies, breaking_changes"
+          },
+          "autonomous": {
+            "type": "string",
+            "description": "What the agent can decide alone within this category"
+          },
+          "escalate": {
+            "type": "string",
+            "description": "What requires human review within this category"
+          }
+        }
+      },
+      "description": "For each decision category, define what can be autonomous vs. what needs human sign-off."
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "priority_order": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["goal", "rank", "beats", "because"],
+        "properties": {
+          "goal": { "type": "string" },
+          "rank": { "type": "integer" },
+          "beats": { "type": "string", "description": "Which lower-priority goal this overrides when they conflict" },
+          "because": { "type": "string", "description": "The reason this goal takes priority" }
+        }
+      },
+      "description": "Ranked goals with explicit conflict resolution. Each entry explains WHY it outranks what it beats."
+    }
+  },
+  "additionalProperties": false
+}

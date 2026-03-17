@@ -11,6 +11,7 @@ from app.qa.validators import (
     _check_layer_specific,
     _check_range_constraints,
     _check_referential_integrity,
+    _check_schema_compliance,
     validate_layer_output,
 )
 from app.state import (
@@ -201,6 +202,74 @@ class TestLayerSpecific:
         }
         findings = _check_layer_specific("context", output, state)
         assert any("compression" in f.detail for f in findings)
+
+
+class TestSchemaCompliance:
+    def test_schema_compliance_valid_output(self):
+        output = {
+            "task_description": "Refactor auth module",
+            "scope": "src/auth/",
+            "type": "refactor",
+            "complexity": {
+                "level": "medium",
+                "reasoning": "Multiple files affected",
+                "recommended_layers": ["prompt", "context", "intent"],
+            },
+            "ambiguities": ["Which auth provider?"],
+            "assumptions": ["Using existing database schema"],
+        }
+        findings = _check_schema_compliance("prompt", output)
+        assert not any(f.severity == "failure" for f in findings)
+
+    def test_schema_compliance_missing_required_field(self):
+        output = {
+            "scope": "src/auth/",
+            "type": "refactor",
+            "complexity": {
+                "level": "medium",
+                "reasoning": "Multiple files affected",
+                "recommended_layers": ["prompt", "context", "intent"],
+            },
+            "ambiguities": [],
+            "assumptions": [],
+        }
+        findings = _check_schema_compliance("prompt", output)
+        assert any(f.severity == "failure" and f.check == "schema_compliance" for f in findings)
+
+    def test_schema_compliance_wrong_type(self):
+        output = {
+            "task_description": "Refactor auth module",
+            "scope": "src/auth/",
+            "type": "refactor",
+            "complexity": "string_not_object",
+            "ambiguities": [],
+            "assumptions": [],
+        }
+        findings = _check_schema_compliance("prompt", output)
+        assert any(f.severity == "failure" and f.check == "schema_compliance" for f in findings)
+
+    def test_schema_compliance_missing_schema_file(self):
+        findings = _check_schema_compliance("nonexistent", {})
+        assert len(findings) == 1
+        assert findings[0].severity == "info"
+        assert findings[0].check == "schema_compliance"
+
+    def test_schema_compliance_additional_properties(self):
+        output = {
+            "task_description": "Refactor auth module",
+            "scope": "src/auth/",
+            "type": "refactor",
+            "complexity": {
+                "level": "medium",
+                "reasoning": "Multiple files affected",
+                "recommended_layers": ["prompt", "context", "intent"],
+            },
+            "ambiguities": [],
+            "assumptions": [],
+            "extra_field": "should not be here",
+        }
+        findings = _check_schema_compliance("prompt", output)
+        assert any(f.severity == "failure" and f.check == "schema_compliance" for f in findings)
 
 
 class TestValidateLayerOutput:

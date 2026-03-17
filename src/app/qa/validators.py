@@ -10,10 +10,13 @@ Fast, deterministic checks with no LLM calls. They catch:
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+import jsonschema
 
 from app.qa.boundary_check import check_boundaries
 from app.state import LayerName, PipelineState
@@ -48,6 +51,71 @@ HOLLOW_PATTERNS: list[re.Pattern] = [
 ]
 
 
+def _check_schema_compliance(layer: LayerName, output: dict) -> list[QAFinding]:
+    """Validate output against the layer's JSON Schema file."""
+    schema_path = (
+        Path(__file__).resolve().parent.parent
+        / "harness"
+        / "schemas"
+        / f"{layer}_output.json"
+    )
+
+    if not schema_path.exists():
+        return [
+            QAFinding(
+                tier="structural",
+                severity="info",
+                check="schema_compliance",
+                layer=layer,
+                detail=f"No schema file found at {schema_path.name} — skipping schema validation",
+            )
+        ]
+
+    try:
+        with open(schema_path) as f:
+            schema = json.load(f)
+    except Exception as exc:
+        return [
+            QAFinding(
+                tier="structural",
+                severity="warning",
+                check="schema_compliance",
+                layer=layer,
+                detail=f"Failed to load schema: {str(exc)[:200]}",
+            )
+        ]
+
+    try:
+        jsonschema.validate(instance=output, schema=schema)
+    except jsonschema.ValidationError as exc:
+        json_path = "$" + "".join(
+            f".{p}" if isinstance(p, str) else f"[{p}]"
+            for p in exc.absolute_path
+        )
+        detail = f"Schema validation failed at {json_path}: {exc.message}"
+        return [
+            QAFinding(
+                tier="structural",
+                severity="failure",
+                check="schema_compliance",
+                layer=layer,
+                detail=detail[:200],
+            )
+        ]
+    except jsonschema.SchemaError as exc:
+        return [
+            QAFinding(
+                tier="structural",
+                severity="warning",
+                check="schema_compliance",
+                layer=layer,
+                detail=f"Malformed schema: {str(exc.message)[:200]}",
+            )
+        ]
+
+    return []
+
+
 def validate_layer_output(
     layer: LayerName,
     output: dict,
@@ -59,6 +127,7 @@ def validate_layer_output(
     Returns findings sorted by severity (failure first).
     """
     findings: list[QAFinding] = []
+    findings += _check_schema_compliance(layer, output)
     findings += _check_hollowness(layer, output)
     findings += _check_boundary_violations(layer, output, state.original_prompt)
     findings += _check_referential_integrity(layer, output, project_dir)

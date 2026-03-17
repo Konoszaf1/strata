@@ -1,5 +1,5 @@
 [project]
-name = "stack-cli"
+name = "strata"
 version = "0.1.0"
 description = "AI-Human Engineering Stack — a layered cognitive pipeline for Claude Code CLI"
 requires-python = ">=3.12"
@@ -8,10 +8,11 @@ dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
     "rich>=13.0",
+    "jsonschema>=4.0",
 ]
 
 [project.scripts]
-stack = "app.cli:main"
+strata = "app.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -22,4 +23,4 @@ packages = ["src/app"]
 artifacts = ["src/app/harness/**"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+dev = ["pytest>=8.0"]

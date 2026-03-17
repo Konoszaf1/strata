@@ -113,8 +113,8 @@ Each layer answers a different question and has strict boundaries about what it 
 | **Prompt** | What to do? | Haiku | Read, Glob | task_description, complexity, ambiguities, assumptions |
 | **Context** | What to know? | Sonnet | Read, Glob, Grep, Bash | sources (verified), gathered_info, distilled_context, gaps |
 | **Intent** | What to want? | Opus | Read, Glob | tradeoffs, decision_boundaries, priority_order (with `because`) |
-| **Judgment** | What to doubt? | Opus | Read, Glob | confidence_boundaries, degradation_protocol, risks (with `detectable`) |
-| **Coherence** | What to become? | Opus | Read, Glob, Bash | final_output, consistency_check, judgment_responses, drift_risk |
+| **Judgment** | What to doubt? | Opus | Read, Glob, Grep | confidence_boundaries, degradation_protocol, risks (with `detectable`) |
+| **Coherence** | What to become? | Sonnet | Read, Glob, Skill | final_output, consistency_check, judgment_responses, drift_risk |
 
 ### Context Isolation
 
@@ -225,12 +225,12 @@ pipeline:
     judgment:
       model: opus
       max_turns: 5
-      allowed_tools: [Read, Glob]
+      allowed_tools: [Read, Glob, Grep]
     coherence:
-      model: opus
-      max_turns: 15
-      allowed_tools: [Read, Glob, Bash]
-      setting_sources: [project]
+      model: sonnet
+      max_turns: 3
+      allowed_tools: [Read, Glob, Skill]
+      setting_sources: [user, project]
 ```
 
 Custom harness directories let you swap the entire prompt set and config:
@@ -302,7 +302,7 @@ tests/
 |---|---|
 | Runtime | Python 3.12+ with uv |
 | LLM | Claude Code CLI (`claude -p` subprocess) |
-| Models | Haiku (prompt), Sonnet (context), Opus (intent, judgment, coherence) |
+| Models | Haiku (prompt), Sonnet (context, coherence), Opus (intent, judgment) |
 | State | Frozen Pydantic v2 models with transition validation |
 | CLI | Click with Rich terminal UI |
 | Config | YAML with four-level merge cascade |

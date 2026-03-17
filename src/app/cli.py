@@ -103,8 +103,8 @@ def main(
 
     \b
     Example:
-        stack "refactor the auth module to use async/await"
-        stack --skip=always --gate=auto "rename usr to user"
+        strata "refactor the auth module to use async/await"
+        strata --skip=always --gate=auto "rename usr to user"
     """
     import logging
 
@@ -147,7 +147,7 @@ def main(
     # Require prompt for pipeline execution
     if not prompt:
         console.print("[error]No prompt provided.[/error]")
-        console.print("Usage: stack \"your prompt here\"")
+        console.print("Usage: strata \"your prompt here\"")
         console.print("       stack --help")
         raise SystemExit(1)
 

@@ -54,3 +54,8 @@ class TestBoundaryProbes:
         output = {"notes": "We should check PROJECT CONVENTION alignment"}
         violations = check_boundaries("prompt", output, "test")
         assert any("project convention" in v.lower() for v in violations)
+
+    def test_judgment_catches_code_patterns(self):
+        output = {"analysis": "def handle_auth(): pass"}
+        violations = check_boundaries("judgment", output, "test")
+        assert any("boundary_violation" in v for v in violations)

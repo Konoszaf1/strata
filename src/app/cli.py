@@ -82,6 +82,13 @@ def _check_prerequisites() -> list[str]:
 @click.option("--no-bootstrap", "no_bootstrap", is_flag=True,
               help="Skip automatic bootstrap even if project is bare")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose logging")
+@click.option("--extra-context", "-x", multiple=True,
+              help="Extra context for layers. Format: 'layer:text' e.g. "
+                   "'context:also check src/legacy/auth.py'")
+@click.option("--attach", "-a", multiple=True, type=click.Path(exists=True),
+              help="Attach file(s) to the pipeline. Contents injected into Context layer input.")
+@click.option("--prompt-file", "-f", type=click.Path(exists=True),
+              help="Read prompt from a file instead of the command line argument.")
 def main(
     prompt: str | None,
     skip: str | None,
@@ -95,6 +102,9 @@ def main(
     force_bootstrap: bool,
     no_bootstrap: bool,
     verbose: bool,
+    extra_context: tuple[str, ...] = (),
+    attach: tuple[str, ...] = (),
+    prompt_file: str | None = None,
 ) -> None:
     """AI-Human Engineering Stack — layered cognitive pipeline for Claude Code.
 
@@ -112,6 +122,10 @@ def main(
         logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
     else:
         logging.basicConfig(level=logging.WARNING)
+
+    # Resolve prompt from file if provided
+    if prompt_file:
+        prompt = Path(prompt_file).read_text(encoding="utf-8").strip()
 
     project_dir = os.path.abspath(os.getcwd())
 
@@ -148,8 +162,33 @@ def main(
     if not prompt:
         console.print("[error]No prompt provided.[/error]")
         console.print("Usage: strata \"your prompt here\"")
-        console.print("       stack --help")
+        console.print("       strata --help")
         raise SystemExit(1)
+
+    # Parse extra context
+    parsed_extra_context: dict[str, list[str]] = {}
+    for item in extra_context:
+        if ":" in item:
+            layer_name, text = item.split(":", 1)
+            layer_name = layer_name.strip().lower()
+            if layer_name in LAYER_ORDER:
+                parsed_extra_context.setdefault(layer_name, []).append(text.strip())
+            else:
+                console.print(f"[warning]Unknown layer '{layer_name}' in --extra-context, ignoring[/warning]")
+
+    # Read attachments
+    attachments: list[dict[str, str]] = []
+    for filepath in attach:
+        path = Path(filepath)
+        try:
+            content = path.read_text(encoding="utf-8")
+            attachments.append({
+                "filename": path.name,
+                "path": str(path),
+                "content": content[:50000],
+            })
+        except (OSError, UnicodeDecodeError) as exc:
+            console.print(f"[warning]Could not read {filepath}: {exc}[/warning]")
 
     # Check prerequisites
     errors = _check_prerequisites()
@@ -168,7 +207,11 @@ def main(
 
     # Run pipeline
     try:
-        asyncio.run(_run(prompt, config, project_dir, harness, force_bootstrap, no_bootstrap))
+        asyncio.run(_run(
+            prompt, config, project_dir, harness, force_bootstrap, no_bootstrap,
+            parsed_extra_context if parsed_extra_context else None,
+            attachments if attachments else None,
+        ))
     except KeyboardInterrupt:
         console.print("\n[yellow]Pipeline interrupted.[/yellow]")
         raise SystemExit(130)
@@ -190,6 +233,8 @@ async def _run(
     harness_override: str | None,
     force_bootstrap: bool = False,
     no_bootstrap: bool = False,
+    extra_context: dict[str, list[str]] | None = None,
+    attachments: list[dict[str, str]] | None = None,
 ) -> None:
     """Async pipeline execution."""
     from app.agents.runner import check_claude_cli
@@ -322,6 +367,8 @@ async def _run(
             harness_override=harness_override,
             usage_tracker=tracker,
             run_id=run_id,
+            extra_context=extra_context,
+            attachments=attachments,
         )
     except BaseException:
         transcript.write_partial()
@@ -363,6 +410,29 @@ async def _run(
                 break
         if not found:
             console.print("[yellow]No layers were approved. Pipeline produced no output.[/yellow]")
+
+    # --- Run summary ---
+    console.print()
+    hourly = tracker.get_hourly_usage()
+    remaining = tracker.estimate_remaining_pct(config.plan)
+
+    layer_count = sum(1 for lr in final_state.layers.values() if lr and lr.status in ("approved", "skipped"))
+    total_in = 0
+    total_out = 0
+    call_count = 0
+    for event in transcript._events:
+        if event.get("type") in ("layer_result", "eval"):
+            usage = event.get("usage")
+            if usage and isinstance(usage, dict):
+                total_in += usage.get("tokens_in", 0)
+                total_out += usage.get("tokens_out", 0)
+                call_count += 1
+
+    console.print(
+        f"[dim]Layers: {layer_count}/5 | API calls: {call_count} | "
+        f"Tokens: {total_in:,} in / {total_out:,} out | "
+        f"Budget remaining: ~{int(remaining * 100)}%[/dim]"
+    )
 
     console.print(f"\n[dim]Run: {final_state.run_id}[/dim]")
     console.print(f"[dim]Transcript: {transcript_path}[/dim]")

@@ -11,12 +11,31 @@ if TYPE_CHECKING:
 from app.state import LAYER_ORDER, LayerName, PipelineState
 
 
+def _slim_context_for_downstream(context_output: dict) -> dict:
+    """Strip verbose fields from Context output for downstream layers.
+
+    Downstream layers should receive distilled_context (the compressed
+    briefing), dependencies, and gaps — NOT the full gathered_info or
+    raw source listings. This respects the Context agent's compression
+    work and saves tokens.
+    """
+    return {
+        "distilled_context": context_output.get("distilled_context", ""),
+        "dependencies": context_output.get("dependencies", []),
+        "gaps": context_output.get("gaps", []),
+        "relevant_history": context_output.get("relevant_history", ""),
+        "source_count": len(context_output.get("sources", [])),
+    }
+
+
 def build_layer_prompt(
     layer: LayerName,
     state: PipelineState,
     user_feedback: str | None = None,
     is_retry: bool = False,
     drift_report: str | None = None,
+    extra_context: list[str] | None = None,
+    attachments: list[dict[str, str]] | None = None,
 ) -> str:
     """Build the prompt piped via stdin to a layer agent.
 
@@ -44,7 +63,10 @@ def build_layer_prompt(
         lr = state.layers.get(prev)
         if lr and lr.status == "approved" and lr.output:
             parts.append(f"\n## Approved: {prev.title()} Layer")
-            parts.append(json.dumps(lr.output, indent=2))
+            if prev == "context":
+                parts.append(json.dumps(_slim_context_for_downstream(lr.output), indent=2))
+            else:
+                parts.append(json.dumps(lr.output, indent=2))
         elif lr and lr.status == "skipped":
             parts.append(f"\n## {prev.title()} Layer: SKIPPED")
 
@@ -66,6 +88,17 @@ def build_layer_prompt(
     if drift_report and layer == "coherence":
         parts.append(f"\n## AIQA Drift Report (cross-run quality trends)\n{drift_report}")
 
+    if attachments and layer in ("context", "coherence"):
+        parts.append("\n## Attached Files (provided by user)")
+        for att in attachments:
+            parts.append(f"\n### {att['filename']}")
+            parts.append(f"```\n{att['content']}\n```")
+
+    if extra_context:
+        parts.append("\n## Additional Context (provided by user)")
+        for item in extra_context:
+            parts.append(f"- {item}")
+
     parts.append(f"\n## Your Task\nProduce your {layer} layer output as JSON.")
     return "\n".join(parts)
 
@@ -75,6 +108,8 @@ def build_eval_prompt(
     layer_output: dict,
     state: PipelineState,
     qa_findings: list[QAFinding] | None = None,
+    is_retry: bool = False,
+    prior_findings: list[str] | None = None,
 ) -> str:
     """Build the prompt for the eval agent. Always full context, never resumes."""
     parts = [f"# Evaluate {layer.title()} Layer"]
@@ -87,7 +122,10 @@ def build_eval_prompt(
         lr = state.layers.get(name)
         if lr and lr.status == "approved" and lr.output:
             parts.append(f"\n## Approved: {name.title()} Layer")
-            parts.append(json.dumps(lr.output, indent=2))
+            if name == "context" and layer != "context":
+                parts.append(json.dumps(_slim_context_for_downstream(lr.output), indent=2))
+            else:
+                parts.append(json.dumps(lr.output, indent=2))
 
     parts.append(f"\n## Original Prompt\n{state.original_prompt}")
 
@@ -109,6 +147,15 @@ def build_eval_prompt(
             parts.append("\n### Info")
             for f in infos:
                 parts.append(f"- [{f.check}] {f.detail}")
+
+    if is_retry and prior_findings:
+        parts.append("\n## Prior Eval (this is a RETRY — check if these were addressed)")
+        for finding in prior_findings:
+            parts.append(f"- {finding}")
+        parts.append(
+            "\nYour job: determine if the retried output ACTUALLY fixed these issues. "
+            "If the same problems persist, verdict should be 'fail', not 'concern'."
+        )
 
     parts.append("\n## Evaluate per criteria and AIQA quality dimensions. Respond with JSON only.")
     return "\n".join(parts)

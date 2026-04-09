@@ -38,11 +38,12 @@ pipeline:
         - Grep
     coherence:
       enabled: true
-      model: sonnet
-      max_turns: 3
+      model: opus
+      max_turns: 10
       allowed_tools:
         - Read
         - Glob
+        - Bash
         - Skill
       setting_sources:
         - user

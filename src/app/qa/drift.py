@@ -24,6 +24,7 @@ class DriftReport:
     quality_trend: Literal["improving", "stable", "declining", "insufficient_data"]
     recurring_failures: list[str] = field(default_factory=list)
     pattern_conflicts: list[str] = field(default_factory=list)
+    recurring_findings: list[str] = field(default_factory=list)
     run_count: int = 0
     recommendation: str = ""
 
@@ -49,6 +50,7 @@ def analyze_drift(project_dir: str, window: int = 10) -> DriftReport:
 
     recurring = _find_recurring_failures(transcripts)
     patterns = _find_pattern_conflicts(transcripts)
+    findings = _find_recurring_findings(transcripts)
     trend = _compute_quality_trend(transcripts)
 
     parts = []
@@ -58,6 +60,8 @@ def analyze_drift(project_dir: str, window: int = 10) -> DriftReport:
         parts.append(f"Recurring failures: {'; '.join(recurring[:3])}.")
     if patterns:
         parts.append(f"Pattern conflicts: {'; '.join(patterns[:3])}.")
+    if findings:
+        parts.append(f"Recurring findings: {'; '.join(findings[:3])}.")
     if not parts:
         parts.append("No significant drift detected.")
 
@@ -65,6 +69,7 @@ def analyze_drift(project_dir: str, window: int = 10) -> DriftReport:
         quality_trend=trend,
         recurring_failures=recurring,
         pattern_conflicts=patterns,
+        recurring_findings=findings,
         run_count=len(transcripts),
         recommendation=" ".join(parts),
     )
@@ -109,6 +114,40 @@ def _find_recurring_failures(transcripts: list[dict]) -> list[str]:
         for layer, count in sorted(failure_counts.items(), key=lambda x: -x[1])
         if count >= threshold
     ]
+
+
+def _find_recurring_findings(transcripts: list[dict]) -> list[str]:
+    """Find specific eval findings that recur across runs.
+
+    Operates at the finding level, not the verdict level.
+    Catches patterns like 'hollowness warning in judgment appears in 7/10 runs'
+    even when the overall verdict is pass or concern.
+    """
+    finding_counts: dict[tuple[str, str], int] = {}
+
+    for t in transcripts:
+        # Track unique findings per run to avoid double-counting retries
+        run_findings: set[tuple[str, str]] = set()
+        for event in t.get("events", []):
+            if event.get("type") == "eval":
+                layer = event.get("layer", "unknown")
+                verdict = event.get("verdict", {})
+                if isinstance(verdict, dict):
+                    for finding in verdict.get("findings", []):
+                        if isinstance(finding, str):
+                            # Normalize: lowercase, truncate to first 80 chars
+                            key = (layer, finding.lower()[:80])
+                            run_findings.add(key)
+        for key in run_findings:
+            finding_counts[key] = finding_counts.get(key, 0) + 1
+
+    # Flag findings that appear in >= 40% of runs
+    threshold = max(2, len(transcripts) * 2 // 5)
+    results = []
+    for (layer, finding), count in sorted(finding_counts.items(), key=lambda x: -x[1]):
+        if count >= threshold:
+            results.append(f"{layer}: '{finding}' (in {count}/{len(transcripts)} runs)")
+    return results[:5]  # Cap at 5 most common
 
 
 def _find_pattern_conflicts(transcripts: list[dict]) -> list[str]:

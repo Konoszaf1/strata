@@ -87,7 +87,7 @@ CLAUDE_MD_TEMPLATE = """\
 
 async def run_bootstrap(
     project_dir: str,
-    model: str = "opus",
+    model: str = "sonnet",
 ) -> tuple[Path | None, dict]:
     """Investigate the project and generate a CLAUDE.md.
 

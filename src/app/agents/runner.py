@@ -63,7 +63,7 @@ async def run_claude(
     project_dir: str = ".",
     resume_session: str | None = None,
     setting_sources: list[str] | None = None,
-    timeout_seconds: int = 300,
+    timeout_seconds: int = 600,
     retry_on_rate_limit: bool = True,
     max_retries: int = 3,
     on_rate_limit_wait: Callable[[int, int], Awaitable[None]] | None = None,

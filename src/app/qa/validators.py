@@ -195,10 +195,9 @@ def _check_boundary_violations(
     findings: list[QAFinding] = []
 
     for v in violations:
-        is_user = v.startswith("[user_originated]")
         findings.append(QAFinding(
             tier="structural",
-            severity="info" if is_user else "warning",
+            severity="info",
             check="boundary_violation",
             layer=layer,
             detail=v,

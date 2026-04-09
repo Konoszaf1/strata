@@ -17,7 +17,7 @@ The harness is the infrastructure around the five cognitive layers. It includes:
 | 2 | Context | "What to know while doing" | sonnet |
 | 3 | Intent | "What to want while doing" | opus |
 | 4 | Judgment | "What to doubt while doing" | opus |
-| 5 | Coherence | "What to become while doing" | sonnet |
+| 5 | Coherence | "What to become while doing" | opus |
 
 Each layer runs as an isolated `claude -p` subprocess with its own session,
 system prompt, and tool restrictions.

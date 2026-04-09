@@ -162,6 +162,8 @@ async def _run_layer(
     is_retry: bool = False,
     user_feedback: str | None = None,
     drift_report: str | None = None,
+    extra_context: list[str] | None = None,
+    attachments: list[dict[str, str]] | None = None,
 ) -> tuple[dict, dict]:
     """Execute a single layer agent. Returns (parsed_output, raw_result)."""
     layer_cfg = config.get_layer(layer)
@@ -173,6 +175,8 @@ async def _run_layer(
     prompt = build_layer_prompt(
         layer, state, user_feedback=user_feedback, is_retry=is_retry,
         drift_report=drift_report,
+        extra_context=extra_context,
+        attachments=attachments,
     )
 
     # Determine if we should resume an existing session
@@ -260,6 +264,34 @@ async def _run_layer(
             # If nudge also failed, fall through with original error
             logger.warning("Empty-result recovery also failed for %s", layer)
 
+    # Malformed-JSON recovery: if agent returned text but it's not valid JSON,
+    # resume the session and ask for clean JSON output.
+    if "_parse_error" in parsed and raw_result.get("result", "").strip():
+        session_id = raw_result.get("session_id")
+        if session_id:
+            logger.warning(
+                "Layer %s returned non-JSON text. Resuming session to request clean JSON.",
+                layer,
+            )
+            nudge_result = await run_claude(
+                prompt=(
+                    "Your previous response was not valid JSON. "
+                    "Respond with ONLY the JSON object specified in your instructions. "
+                    "No markdown fences, no commentary, no explanation — just the raw JSON."
+                ),
+                append_system_prompt_file=agent_file,
+                model=layer_cfg.model,
+                max_turns=2,
+                allowed_tools=[],  # No tools — force text output
+                project_dir=state.project_dir,
+                resume_session=session_id,
+                setting_sources=setting_sources,
+            )
+            nudge_parsed = _parse_agent_output(nudge_result)
+            if "_parse_error" not in nudge_parsed:
+                return nudge_parsed, nudge_result
+            logger.warning("Malformed-JSON recovery also failed for %s", layer)
+
     return parsed, raw_result
 
 
@@ -270,13 +302,18 @@ async def _run_eval(
     config: PipelineConfig,
     harness_dir: Path,
     qa_findings: list[QAFinding] | None = None,
+    is_retry: bool = False,
+    prior_findings: list[str] | None = None,
 ) -> EvalVerdict:
     """Run the eval agent (always fresh session)."""
     eval_file = harness_dir / "agents" / "eval.md"
     if not eval_file.is_file():
         raise FileNotFoundError(f"Eval prompt file not found: {eval_file}")
 
-    prompt = build_eval_prompt(layer, layer_output, state, qa_findings=qa_findings)
+    prompt = build_eval_prompt(
+        layer, layer_output, state, qa_findings=qa_findings,
+        is_retry=is_retry, prior_findings=prior_findings,
+    )
 
     raw_result = await run_claude(
         prompt=prompt,
@@ -333,6 +370,8 @@ async def run_pipeline(
     harness_override: str | None = None,
     usage_tracker: object | None = None,
     run_id: str | None = None,
+    extra_context: dict[str, list[str]] | None = None,
+    attachments: list[dict[str, str]] | None = None,
 ) -> PipelineState:
     """Main pipeline loop.
 
@@ -404,10 +443,16 @@ async def run_pipeline(
         if layer == "coherence":
             drift = analyze_drift(project_dir)
             if drift.quality_trend != "insufficient_data":
-                drift_text = (
-                    f"Trend: {drift.quality_trend} (across {drift.run_count} runs)\n"
-                    f"{drift.recommendation}"
-                )
+                drift_parts = [
+                    f"Trend: {drift.quality_trend} (across {drift.run_count} runs)",
+                    drift.recommendation,
+                ]
+                if drift.recurring_findings:
+                    drift_parts.append("Recurring findings: " + "; ".join(drift.recurring_findings[:3]))
+                drift_text = "\n".join(drift_parts)
+
+        # Resolve per-layer extra context
+        layer_extra = (extra_context or {}).get(layer)
 
         # Run the layer agent
         try:
@@ -419,6 +464,8 @@ async def run_pipeline(
                 is_retry=is_retry,
                 user_feedback=lr.rejection_history[-1].user_feedback if is_retry and lr and lr.rejection_history else None,
                 drift_report=drift_text,
+                extra_context=layer_extra,
+                attachments=attachments,
             )
         except LayerCancelled:
             logger.info("Layer %s cancelled by user", layer)
@@ -446,7 +493,34 @@ async def run_pipeline(
                     return state
             else:
                 return state
-        except (ClaudeCliError, FileNotFoundError) as exc:
+        except ClaudeCliError as exc:
+            if "Timed out" in str(exc):
+                logger.warning("Layer %s timed out: %s", layer, exc)
+                state = pre_layer_state
+                if on_interrupt:
+                    prev_layer = enabled_layers[i - 1] if i > 0 else None
+                    int_event = InterruptEvent(
+                        layer=layer,
+                        state=state,
+                        can_go_back=i > 0,
+                        previous_layer=prev_layer,
+                    )
+                    int_decision = await on_interrupt(int_event)
+                    if int_decision.action == "retry":
+                        continue
+                    elif int_decision.action == "back":
+                        target = int_decision.target_layer or prev_layer
+                        if target and target in enabled_layers:
+                            state = cascade_reset(state, target)
+                            i = enabled_layers.index(target)
+                        continue
+                    else:
+                        return state
+                else:
+                    raise
+            logger.error("Layer %s failed: %s", layer, exc)
+            raise
+        except FileNotFoundError as exc:
             logger.error("Layer %s failed: %s", layer, exc)
             raise
 
@@ -467,6 +541,14 @@ async def run_pipeline(
                 "; ".join(f.detail for f in tier1_failures),
             )
 
+        # Extract prior eval findings for retry awareness
+        is_layer_retry = lr is not None and lr.attempt > 1
+        prior_eval_findings = None
+        if is_layer_retry and lr and lr.rejection_history:
+            last_rejection = lr.rejection_history[-1]
+            if last_rejection.eval_verdict:
+                prior_eval_findings = last_rejection.eval_verdict.findings
+
         # Run eval
         eval_failed = False
         if on_eval_start:
@@ -479,6 +561,8 @@ async def run_pipeline(
                 config=config,
                 harness_dir=harness_dir,
                 qa_findings=qa_findings,
+                is_retry=is_layer_retry,
+                prior_findings=prior_eval_findings,
             )
         except LayerCancelled:
             logger.info("Eval for %s cancelled by user", layer)

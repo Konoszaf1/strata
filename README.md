@@ -114,7 +114,7 @@ Each layer answers a different question and has strict boundaries about what it 
 | **Context** | What to know? | Sonnet | Read, Glob, Grep, Bash | sources (verified), gathered_info, distilled_context, gaps |
 | **Intent** | What to want? | Opus | Read, Glob | tradeoffs, decision_boundaries, priority_order (with `because`) |
 | **Judgment** | What to doubt? | Opus | Read, Glob, Grep | confidence_boundaries, degradation_protocol, risks (with `detectable`) |
-| **Coherence** | What to become? | Sonnet | Read, Glob, Skill | final_output, consistency_check, judgment_responses, drift_risk |
+| **Coherence** | What to become? | Opus | Read, Glob, Bash, Skill | final_output, consistency_check, judgment_responses, drift_risk |
 
 ### Context Isolation
 
@@ -227,9 +227,9 @@ pipeline:
       max_turns: 5
       allowed_tools: [Read, Glob, Grep]
     coherence:
-      model: sonnet
-      max_turns: 3
-      allowed_tools: [Read, Glob, Skill]
+      model: opus
+      max_turns: 10
+      allowed_tools: [Read, Glob, Bash, Skill]
       setting_sources: [user, project]
 ```
 
@@ -302,7 +302,7 @@ tests/
 |---|---|
 | Runtime | Python 3.12+ with uv |
 | LLM | Claude Code CLI (`claude -p` subprocess) |
-| Models | Haiku (prompt), Sonnet (context, coherence), Opus (intent, judgment) |
+| Models | Haiku (prompt), Sonnet (context), Opus (intent, judgment, coherence) |
 | State | Frozen Pydantic v2 models with transition validation |
 | CLI | Click with Rich terminal UI |
 | Config | YAML with four-level merge cascade |

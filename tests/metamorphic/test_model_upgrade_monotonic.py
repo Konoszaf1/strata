@@ -21,9 +21,8 @@ class TestModelUpgradeConfig:
         layers = ["prompt", "context", "intent", "judgment", "coherence"]
         models = [config.get_layer(name).model for name in layers]
 
-        # Prompt (haiku) <= Context (sonnet) <= Intent (opus) — monotonically non-decreasing
-        # then Judgment (opus) >= Coherence (sonnet) — Coherence can be lower (integration role)
-        for i in range(3):  # prompt through intent
+        # All five layers should be non-decreasing: haiku <= sonnet <= opus <= opus <= opus
+        for i in range(len(layers) - 1):
             tier_curr = self.TIER_ORDER.get(models[i], -1)
             tier_next = self.TIER_ORDER.get(models[i + 1], -1)
             assert tier_curr <= tier_next, (

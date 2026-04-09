@@ -16,20 +16,25 @@ from app.state import LayerName
 # Coherence has no forbidden concepts — it integrates everything.
 FORBIDDEN_CONCEPTS: dict[str, list[str]] = {
     "prompt": [
-        "risk", "vulnerability", "alternative approach", "project identity",
-        "CLAUDE.md", "project convention",
+        "risk", "vulnerability", "danger", "threat",
+        "alternative approach", "could instead", "another option",
+        "project identity", "project convention",
+        "CLAUDE.md", "coding standard",
     ],
     "context": [
-        "goal", "success criteria", "risk assessment", "should want",
-        "CLAUDE.md", "project convention",
+        "goal", "success criteria", "should want", "objective",
+        "risk assessment", "risk analysis",
+        "CLAUDE.md", "project convention", "coding standard",
     ],
     "intent": [
-        "risk", "doubt", "might fail", "alternative approach",
-        "CLAUDE.md", "project convention",
+        "risk", "doubt", "might fail", "could break", "danger",
+        "alternative approach", "we could instead",
+        "CLAUDE.md", "project convention", "coding standard",
     ],
     "judgment": [
         "final implementation", "here is the code", "the solution is",
-        "CLAUDE.md", "project convention",
+        "def ", "class ", "import ",
+        "CLAUDE.md", "project convention", "coding standard",
     ],
 }
 
